@@ -44,7 +44,7 @@ def decode_pad(image_string, pad_height, pad_width):
   return image
 
 
-def process_bbox(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch,batch_size=2):
+def process_bbox(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch, batch_size):
     regression_batch = list()
     classification_batch = list()
 
@@ -59,75 +59,82 @@ def process_bbox(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch,bat
 
     return tf.convert_to_tensor(regression_batch), tf.convert_to_tensor(classification_batch)
 
-def _parse_fn(serialized):
-    """Summary
+
+class Tfrpaser(object):
+    """docstring for Tfrpaser"""
+    def __init__(self, batch_size):
+
+        self.batch_size = batch_size
         
-        Args:
-            serialized (TYPE): Description
+
+    def _parse_fn(self, serialized):
+        """Summary
+            
+            Args:
+                serialized (TYPE): Description
+            
+            Returns:
+                TYPE: Description
+        """
+        features = {
+              'image/height': tf.io.FixedLenFeature([], tf.int64),
+              'image/width': tf.io.FixedLenFeature([], tf.int64),
+              'image/encoded': tf.io.FixedLenFeature([],tf.string),
+              'image/object/bbox/xmin': tf.io.VarLenFeature(tf.keras.backend.floatx()),
+              'image/object/bbox/xmax': tf.io.VarLenFeature(tf.keras.backend.floatx()),
+              'image/object/bbox/ymin': tf.io.VarLenFeature(tf.keras.backend.floatx()),
+              'image/object/bbox/ymax': tf.io.VarLenFeature(tf.keras.backend.floatx()),
+              'image/f_id': tf.io.FixedLenFeature([], tf.int64),
+              'image/object/class/label':tf.io.VarLenFeature(tf.int64)}
+
+
+        parsed_example = tf.io.parse_example(serialized=serialized, features=features)
+
+        max_height = tf.cast(tf.keras.backend.max(parsed_example['image/height']), tf.int32)
+        max_width = tf.cast(tf.keras.backend.max(parsed_example['image/width']), tf.int32)
+
+        image_batch = tf.map_fn(lambda x: decode_pad(x, max_height, max_width), parsed_example['image/encoded'], dtype=tf.uint8)
         
-        Returns:
-            TYPE: Description
-    """
-    features = {
-          'image/height': tf.io.FixedLenFeature([], tf.int64),
-          'image/width': tf.io.FixedLenFeature([], tf.int64),
-          'image/encoded': tf.io.FixedLenFeature([],tf.string),
-          'image/object/bbox/xmin': tf.io.VarLenFeature(tf.keras.backend.floatx()),
-          'image/object/bbox/xmax': tf.io.VarLenFeature(tf.keras.backend.floatx()),
-          'image/object/bbox/ymin': tf.io.VarLenFeature(tf.keras.backend.floatx()),
-          'image/object/bbox/ymax': tf.io.VarLenFeature(tf.keras.backend.floatx()),
-          'image/f_id': tf.io.FixedLenFeature([], tf.int64),
-          'image/object/class/label':tf.io.VarLenFeature(tf.int64)}
+        xmin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmin'],default_value=-1)
+        xmax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmax'],default_value=-1)
+        ymin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymin'],default_value=-1)
+        ymax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymax'],default_value=-1)
+
+        label_batch = tf.sparse.to_dense(parsed_example['image/object/class/label'], default_value=-1)
+
+        regression_batch,classification_batch = process_bbox(xmin_batch, xmax_batch, ymin_batch, ymax_batch, label_batch, self.batch_size)
+
+        return image_batch, {'regression':regression_batch, 'classification':classification_batch}
 
 
-    parsed_example = tf.io.parse_example(serialized=serialized, features=features)
+    def parse_tfrecords(self, filename):
 
-    max_height = tf.cast(tf.keras.backend.max(parsed_example['image/height']), tf.int32)
-    max_width = tf.cast(tf.keras.backend.max(parsed_example['image/width']), tf.int32)
+        dataset = tf.data.Dataset.list_files(filename).shuffle(buffer_size=8).repeat(-1)
+        dataset = dataset.interleave(
+                    tf.data.TFRecordDataset,
+                    num_parallel_calls = tf.data.experimental.AUTOTUNE,
+                    deterministic=False)
 
-    image_batch = tf.map_fn(lambda x: decode_pad(x, max_height, max_width), parsed_example['image/encoded'], dtype=tf.uint8)
-    
-    xmin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmin'],default_value=-1)
-    xmax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmax'],default_value=-1)
-    ymin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymin'],default_value=-1)
-    ymax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymax'],default_value=-1)
+        dataset = dataset.batch(
+                    self.batch_size,
+                    drop_remainder=True)
+        
+        dataset = dataset.map(
+                    self._parse_fn,
+                    num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-    label_batch = tf.sparse.to_dense(parsed_example['image/object/class/label'], default_value=-1)
+        dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
-    regression_batch,classification_batch = process_bbox(xmin_batch,xmax_batch,
-                                                        ymin_batch,ymax_batch,label_batch)
-
-    return image_batch, {'regression':regression_batch, 'classification':classification_batch}
-
-
-def parse_tfrecords(filename, batch_size):
-
-    dataset = tf.data.Dataset.list_files(filename).shuffle(buffer_size=256).repeat(-1)
-    dataset = dataset.interleave(
-                tf.data.TFRecordDataset,
-                num_parallel_calls = tf.data.experimental.AUTOTUNE,
-                deterministic=False)
-
-    dataset = dataset.batch(
-                batch_size,
-                drop_remainder=True)
-    
-    dataset = dataset.map(
-                _parse_fn,
-                num_parallel_calls=tf.data.experimental.AUTOTUNE)
-
-    dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-
-    return dataset
+        return dataset
 
 
 if __name__ == '__main__':
-    
-    dataset = parse_tfrecords(
-        filename=os.path.join(os.getcwd(),'DATA','train*.tfrecord'), 
-        batch_size=2)
 
-    for data, annotation in dataset.take(1):
+    parser = Tfrpaser(batch_size=2)
+    
+    dataset = parser.parse_tfrecords(filename=os.path.join(os.getcwd(),'DATA','train*.tfrecord'))
+
+    for data, annotation in dataset.take(2):
         image_batch = data.numpy()
         abxs_batch = annotation['regression'].numpy()
         labels_batch = annotation['classification'].numpy()

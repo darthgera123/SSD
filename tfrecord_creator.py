@@ -259,6 +259,6 @@ def create_tfrecords(image_dir, xml_dir, outpath=os.path.join(os.getcwd(),'DATA'
 
 
 if __name__ == '__main__':
-  image_dir="../../aerial-vehicles-dataset/images"
-  xml_dir="../../aerial-vehicles-dataset/annotations/pascalvoc_xml"
+  image_dir="./aerial-vehicles-dataset/images"
+  xml_dir="./aerial-vehicles-dataset/annotations/pascalvoc_xml"
   create_tfrecords(image_dir, xml_dir, outname='aerial-vehicles-dataset.tfrecord')
