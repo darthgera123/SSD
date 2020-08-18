@@ -12,11 +12,26 @@ def read_image(img_string):
     # and width that is set dynamically by decode_jpeg. In other
     # words, the height and width of image is unknown at compile-i
     # time.
-	image = tf.image.decode_jpeg(img_string)
+	image = tf.image.decode_jpeg(str(img_string))
 	# now here we can do all sorts of preprocessing and augmentations
 	# image = preprocess(image)
 	image = tf.image.convert_image_dtype(image, dtype=tf.float32)
 	return image
+
+def process_bbox(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch,batch_size=2):
+	regression_batch = list()
+	classification_batch = list()
+
+	for index in range(batch_size):
+	    xmins, ymins, xmaxs, ymaxs, labels = xmin_batch[index], ymin_batch[index], xmax_batch[index], ymax_batch[index], label_batch[index]
+	    bboxes = tf.convert_to_tensor([xmins,ymins,xmaxs,ymaxs], dtype=tf.keras.backend.floatx())
+	    bboxes = tf.transpose(bboxes)
+	    
+
+	    regression_batch.append(bboxes)
+	    classification_batch.append(labels)
+
+	return tf.convert_to_tensor(regression_batch), tf.convert_to_tensor(classification_batch)
 
 def _parse_fn(serialized):
 	"""Summary
@@ -41,22 +56,18 @@ def _parse_fn(serialized):
 
 	parsed_example = tf.io.parse_example(serialized=serialized, features=features)
 	image_batch = read_image(parsed_example['image/encoded'])
-
+	tf.print(image_batch.shape)
 	xmin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmin'],default_value=-1)
 	xmax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmax'],default_value=-1)
 	ymin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymin'],default_value=-1)
 	ymax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymax'],default_value=-1)
 
-	label_batch = tf.sparse(parsed_example['image/object/class/label'], default_value=-1)
+	label_batch = tf.sparse.to_dense(parsed_example['image/object/class/label'], default_value=-1)
 
-	bbox_batch = {
-			'xmin': xmin_batch,
-			'xmax': xmax_batch,
-			'ymin': ymin_batch,
-			'ymax': ymax_batch
-    }
+	regression_batch,classification_batch = process_bbox(xmin_batch,xmax_batch,
+														ymin_batch,ymax_batch,label_batch)
 
-	return image_batch, bbox_batch, label_batch
+	return image_batch, {'regression':regression_batch, 'classification':classification_batch}
 
 
 def parse_tfrecords(filename, batch_size):
@@ -86,8 +97,10 @@ if __name__ == '__main__':
         filename=os.path.join(os.getcwd(),'DATA','train*.tfrecord'), 
         batch_size=2)
 
-	for data, bbox, label in data.take(5):
+	for data, annotation in dataset.take(1):
 		image_batch = data.numpy()
-		bbox_batch = bbox.numpy()
-		label_batch = label.numpy()
-		print(image_batch.shape,label_batch)
+		abxs_batch = annotation['regression'].numpy()
+		labels_batch = annotation['classification'].numpy()
+
+		print(image_batch.shape, abxs_batch.shape, labels_batch.shape)
+		print(image_batch.dtype, abxs_batch.dtype, labels_batch.dtype)
