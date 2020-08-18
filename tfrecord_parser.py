@@ -59,8 +59,8 @@ def _parse_fn(serialized):
 	parsed_example = tf.io.parse_example(serialized=serialized, features=features)
 	print(str(parsed_example['image/encoded']))
 	print(parsed_example['image/encoded'][0])
-	exit()
-	image_batch = read_image(parsed_example['image/encoded'])
+	# exit()
+	image_batch = read_image(parsed_example['image/encoded'][0])
 	
 	xmin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmin'],default_value=-1)
 	xmax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmax'],default_value=-1)
