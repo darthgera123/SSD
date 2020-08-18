@@ -12,11 +12,13 @@ def read_image(img_string):
     # and width that is set dynamically by decode_jpeg. In other
     # words, the height and width of image is unknown at compile-i
     # time.
-	image = tf.image.decode_jpeg(str(img_string))
+    print(str(img_string))
+    image = tf.image.decode_jpeg(img_string)
 	# now here we can do all sorts of preprocessing and augmentations
 	# image = preprocess(image)
-	image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-	return image
+
+    image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+    return image
 
 def process_bbox(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch,batch_size=2):
 	regression_batch = list()
@@ -55,8 +57,11 @@ def _parse_fn(serialized):
 
 
 	parsed_example = tf.io.parse_example(serialized=serialized, features=features)
+	print(str(parsed_example['image/encoded']))
+	print(parsed_example['image/encoded'][0])
+	exit()
 	image_batch = read_image(parsed_example['image/encoded'])
-	tf.print(image_batch.shape)
+	
 	xmin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmin'],default_value=-1)
 	xmax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmax'],default_value=-1)
 	ymin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymin'],default_value=-1)
