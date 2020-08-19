@@ -1,0 +1,10 @@
+*.pyc
+__pycache__
+/DATA/*.tfrecord
+aerial-vehicles-dataset
+*.zip
+*.txt
+/pretrained
+*.jpeg
+*.gz
+/aerial_yolo
