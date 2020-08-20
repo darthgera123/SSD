@@ -216,6 +216,12 @@ def create_tfrecords(image_dir, xml_dir, outpath=os.path.join(os.getcwd(),'DATA'
   if not outname.endswith('.tfrecord'):
     raise ValueError("outname should endwith '.tfrecord', got name %s "%(outname))
 
+  if not os.path.isdir(image_dir):
+    raise ValueError('image directory doesnt exist')
+
+  if not os.path.isdir(xml_dir):
+    raise ValueError('annotation directory doesnt exist')
+
   image_names = files_to_retain(glob.glob(os.path.join(image_dir,'*.jpg')),xml_dir)
 
   os.makedirs(outpath, exist_ok=True)
@@ -259,6 +265,6 @@ def create_tfrecords(image_dir, xml_dir, outpath=os.path.join(os.getcwd(),'DATA'
 
 
 if __name__ == '__main__':
-  image_dir="./aerial-vehicles-dataset/images"
-  xml_dir="./aerial-vehicles-dataset/annotations/pascalvoc_xml"
+  image_dir="../images"
+  xml_dir="../annotations/pascalvoc_xml"
   create_tfrecords(image_dir, xml_dir, outname='aerial-vehicles-dataset.tfrecord')

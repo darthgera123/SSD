@@ -25,8 +25,12 @@ if __name__ == '__main__':
 
     dataset = TFDataset()
     train_data, train_count = dataset.generate_datatset()
-
+    tf.Print(train_data)
+    tf.Print(train_count)
+    print("Hello")
+    # exit()
     ssd = SSD()
+    exit()
     print_model_summary(network=ssd)
 
     if load_weights_before_training:
