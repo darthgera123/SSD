@@ -5,10 +5,10 @@ import numpy as np
 IMAGE_WIDTH=300
 IMAGE_HEIGHT=300
 MAX_BOX_PER_IMAGE = 30
-# we will read the tfrecords
+# Read the tfrecords
 # preprocess and do augmentation
 # return the dataloader
-# return image, bbox, labels
+# return image, [bbox, labels]
 def __resize(image):
     """Summary
     
@@ -67,7 +67,10 @@ def resize_boxes(xmins,xmaxs,ymins,ymaxs,h,w):
   return xmin.astype('float32'), ymin.astype('float32'), xmax.astype('float32'), ymax.astype('float32')
 
 def create_tensor(xmins,xmaxs,ymins,ymaxs,labels):
-  new_tensor = list(zip(xmins,xmaxs,ymins,ymaxs,labels))
+  """Summary
+  Create a bbox batch of the form [xmin,ymin, xmax,ymax,labels]
+  """
+  new_tensor = list(zip(xmins,ymins,xmaxs,ymaxs,labels))
   remainder = MAX_BOX_PER_IMAGE-len(new_tensor)
   if remainder > 0:
     for i in range(remainder):
@@ -75,7 +78,9 @@ def create_tensor(xmins,xmaxs,ymins,ymaxs,labels):
   else:
     new_tensor = new_tensor[:MAX_BOX_PER_IMAGE]
   return np.asarray(new_tensor).astype('float32')
+
 def process_bbox(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch, heights, widths, batch_size):
+    
     regression_batch = list()
 
     for index in range(batch_size):
