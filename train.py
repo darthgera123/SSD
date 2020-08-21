@@ -1,5 +1,6 @@
 import tensorflow as tf
 import time
+import os
 
 from configuration import IMAGE_HEIGHT, IMAGE_WIDTH, CHANNELS, EPOCHS, NUM_CLASSES, BATCH_SIZE, save_model_dir, \
     load_weights_before_training, load_weights_from_epoch, save_frequency, test_images_during_training, \
@@ -9,6 +10,7 @@ from core.loss import SSDLoss
 from core.make_dataset import TFDataset
 from core.ssd import SSD, ssd_prediction
 from utils.visualize import visualize_training_results
+from tfrecord_parser import Tfrparser
 
 
 def print_model_summary(network):
@@ -23,14 +25,12 @@ if __name__ == '__main__':
         for gpu in gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
 
-    dataset = TFDataset()
-    train_data, train_count = dataset.generate_datatset()
-    tf.Print(train_data)
-    tf.Print(train_count)
-    print("Hello")
-    # exit()
+    parser = Tfrparser(BATCH_SIZE)
+    dataset = parser.parse_tfrecords(filename=os.path.join(os.getcwd(),'DATA','train*.tfrecord'))
+    train_count = parser.count_tfrecord_examples(os.path.join(os.getcwd(),'DATA'))
+
     ssd = SSD()
-    exit()
+    
     print_model_summary(network=ssd)
 
     if load_weights_before_training:
@@ -69,8 +69,9 @@ if __name__ == '__main__':
 
     for epoch in range(load_weights_from_epoch + 1, EPOCHS):
         start_time = time.time()
-        for step, batch_data in enumerate(train_data):
-            images, labels = ReadDataset().read(batch_data)
+        # for step, batch_data in enumerate(train_data):
+        #     images, labels = ReadDataset().read(batch_data)
+        for step, (images,labels) in enumerate(dataset): 
             train_step(batch_images=images, batch_labels=labels)
             time_per_step = (time.time() - start_time) / (step + 1)
             print("Epoch: {}/{}, step: {}/{}, {:.2f}s/step, loss: {:.5f}, "

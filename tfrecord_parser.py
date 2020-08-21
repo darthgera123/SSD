@@ -4,7 +4,7 @@ import cv2, os, glob
 import numpy as np
 
 from helpers import SSD300Config
-
+from configuration import MAX_BOXES_PER_IMAGE
 config = SSD300Config()
 
 
@@ -70,9 +70,10 @@ def make_gt(bboxes, max_box_per_image, height_scale, width_scale):
 
     max_index = min(num_boxes, max_box_per_image)
 
-    arr[:max_index, :5] = bboxes[:max_index, :5]
+    arr[:max_index, :5] = bboxes[:max_index, :5].astype('uint32')
 
-    return arr #.astype(keras.backend.floatx())
+
+    return arr.astype('float32') #.astype(keras.backend.floatx())
 
 @tf.function
 def tf_make_gt(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch, batch_size, max_box_per_image, height_scale, width_scale):
@@ -95,7 +96,7 @@ def tf_make_gt(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch, batc
     return tf.convert_to_tensor(annotation_batch)
 
 
-class Tfrpaser(object):
+class Tfrparser(object):
     """docstring for Tfrpaser"""
     def __init__(self, batch_size):
 
@@ -148,11 +149,28 @@ class Tfrpaser(object):
             ymax_batch, 
             label_batch, 
             self.batch_size,
-            config.max_boxes_per_image,
+            # config.max_boxes_per_image,
+            MAX_BOXES_PER_IMAGE,
             height_scale, 
             width_scale)
 
         return image_batch/255, annotation_batch
+
+    def count_tfrecord_examples(self,tfrecords_dir: str) -> int:
+        """
+        Counts the total number of examples in a collection of TFRecord files.
+
+        :param tfrecords_dir: directory that is assumed to contain only TFRecord files
+        :return: the total number of examples in the collection of TFRecord files
+            found in the specified directory
+        """
+
+        count = 0
+        for file_name in os.listdir(tfrecords_dir):
+            tfrecord_path = os.path.join(tfrecords_dir, file_name)
+            count += sum(1 for _ in tf.data.TFRecordDataset(tfrecord_path))
+
+        return count
 
 
     def parse_tfrecords(self, filename):
@@ -180,19 +198,20 @@ if __name__ == '__main__':
 
     from helpers import draw_boxes_on_image_v2
 
-    parser = Tfrpaser(batch_size=2)
+    parser = Tfrparser(batch_size=2)
     
     dataset = parser.parse_tfrecords(filename=os.path.join(os.getcwd(),'DATA','train*.tfrecord'))
-
+    count = parser.count_tfrecord_examples(os.path.join(os.getcwd(),'DATA'))
+    print(count)
     for data, annotation in dataset.take(1):
         image_batch = data.numpy()
         abxs_batch = annotation.numpy()
-        # print(image_batch.shape)
+        print(image_batch.shape)
         # print(abxs_batch.shape)
         # # print(image_batch)
-        # print(abxs_batch)
+        print(abxs_batch)
 
-        for index in range(parser.batch_size):
-            im = draw_boxes_on_image_v2(image_batch[index]*255, abxs_batch[index])
-            cv2.imwrite(f"{index}.jpg", im)
+        # for index in range(parser.batch_size):
+        #     im = draw_boxes_on_image_v2(image_batch[index]*255, abxs_batch[index])
+        #     cv2.imwrite(f"{index}.jpg", im)
         
