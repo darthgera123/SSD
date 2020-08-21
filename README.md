@@ -5,6 +5,8 @@ train and inference
 
 Following this [code](https://github.com/calmisential/TensorFlow2.0_SSD)
 
-Changes to be made:
-+ instead of text file, read from tfrecords
-+ convert config file settings to arguments
+Pros:
+Very easy to follow code
+
+Cons:
+Very Slow training. 2hrs per epoch on VOC 2007
