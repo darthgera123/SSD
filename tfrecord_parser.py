@@ -70,7 +70,7 @@ def make_gt(bboxes, max_box_per_image, height_scale, width_scale):
 
     max_index = min(num_boxes, max_box_per_image)
 
-    arr[:max_index, :5] = bboxes[:max_index, :5].astype('uint32')
+    arr[:max_index, :5] = bboxes[:max_index, :5]
 
 
     return arr.astype('float32') #.astype(keras.backend.floatx())
@@ -206,10 +206,11 @@ if __name__ == '__main__':
     for data, annotation in dataset.take(1):
         image_batch = data.numpy()
         abxs_batch = annotation.numpy()
-        print(image_batch.shape)
+        print(data.shape)
+        print(annotation)
         # print(abxs_batch.shape)
         # # print(image_batch)
-        print(abxs_batch)
+        # print(abxs_batch)
 
         # for index in range(parser.batch_size):
         #     im = draw_boxes_on_image_v2(image_batch[index]*255, abxs_batch[index])

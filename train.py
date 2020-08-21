@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     ssd = SSD()
     
-    print_model_summary(network=ssd)
+    # print_model_summary(network=ssd)
 
     if load_weights_before_training:
         ssd.load_weights(filepath=save_model_dir+"epoch-{}".format(load_weights_from_epoch))
@@ -69,10 +69,9 @@ if __name__ == '__main__':
 
     for epoch in range(load_weights_from_epoch + 1, EPOCHS):
         start_time = time.time()
-        # for step, batch_data in enumerate(train_data):
-        #     images, labels = ReadDataset().read(batch_data)
         for step, (images,labels) in enumerate(dataset): 
             train_step(batch_images=images, batch_labels=labels)
+
             time_per_step = (time.time() - start_time) / (step + 1)
             print("Epoch: {}/{}, step: {}/{}, {:.2f}s/step, loss: {:.5f}, "
                   "cls loss: {:.5f}, reg loss: {:.5f}".format(epoch,

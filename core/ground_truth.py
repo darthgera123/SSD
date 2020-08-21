@@ -72,14 +72,14 @@ class MakeGT(object):
         true_boxes_y = boxes_xywhc[..., 1] / IMAGE_HEIGHT
         true_boxes_w = boxes_xywhc[..., 2] / IMAGE_WIDTH
         true_boxes_h = boxes_xywhc[..., 3] / IMAGE_HEIGHT
-        true_boxes_c = boxes_xywhc[..., -1]
+        true_boxes_c = boxes_xywhc[..., 4]
         true_boxes = np.stack((true_boxes_x, true_boxes_y, true_boxes_w, true_boxes_h, true_boxes_c), axis=-1)
         return true_boxes
 
     @staticmethod
     def __to_xywhc(boxes):
         xy = 0.5 * (boxes[..., 0:2] + boxes[..., 2:4])
-        wh = boxes[..., 2:4] - boxes[..., 0:2]
+        wh = np.abs(boxes[..., 2:4] - boxes[..., 0:2])
         c = boxes[..., -1:]
         return np.concatenate((xy, wh, c), axis=-1)  # (center_x, center_y, w, h, c)
 
@@ -121,10 +121,17 @@ class MakeGT(object):
     def __get_offset(box_true, box_pred):
         d_cx, d_cy, d_w, d_h = box_pred
         g_cx, g_cy, g_w, g_h = box_true
-        g_cx = (g_cx - d_cx) / d_w
-        g_cy = (g_cy - d_cy) / d_h
-        g_w = np.log(g_w / d_w)
-        g_h = np.log(g_h / d_h)
+
+        with np.errstate(divide='raise'):
+            try:
+                g_cx = (g_cx - d_cx) / d_w
+                g_cy = (g_cy - d_cy) / d_h
+                g_w = np.log(g_w+1e-7/(d_w))
+                g_h = np.log(g_h+1e-7/(d_h))
+            except FloatingPointError as e:
+                print(box_pred)
+                print(box_true)
+                exit()
         return np.stack([g_cx, g_cy, g_w, g_h], axis=0)
 
     def generate_gt_boxes(self):

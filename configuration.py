@@ -1,6 +1,6 @@
 # training parameters
 EPOCHS = 1
-BATCH_SIZE = 8
+BATCH_SIZE = 32
 # NUM_CLASSES = 20
 IMAGE_HEIGHT = 300
 IMAGE_WIDTH = 300
@@ -37,12 +37,12 @@ reg_loss_weight = 0.5
 # dataset
 PASCAL_VOC_DIR = "./dataset/VOC2007/"
 # The 20 object classes of PASCAL VOC
-# OBJECT_CLASSES = {"person": 1, "bird": 2, "cat": 3, "cow": 4, "dog": 5,
-#                   "horse": 6, "sheep": 7, "aeroplane": 8, "bicycle": 9,
-#                   "boat": 10, "bus": 11, "car": 12, "motorbike": 13,
-#                   "train": 14, "bottle": 15, "chair": 16, "diningtable": 17,
-#                   "pottedplant": 18, "sofa": 19, "tvmonitor": 20}
-OBJECT_CLASSES = {'car': 1, 'minibus': 2, 'bus': 3, 'truck': 4}
+OBJECT_CLASSES = {"person": 1, "bird": 2, "cat": 3, "cow": 4, "dog": 5,
+                  "horse": 6, "sheep": 7, "aeroplane": 8, "bicycle": 9,
+                  "boat": 10, "bus": 11, "car": 12, "motorbike": 13,
+                  "train": 14, "bottle": 15, "chair": 16, "diningtable": 17,
+                  "pottedplant": 18, "sofa": 19, "tvmonitor": 20}
+# OBJECT_CLASSES = {'car': 1, 'minibus': 2, 'bus': 3, 'truck': 4}
 NUM_CLASSES = len(OBJECT_CLASSES) + 1
 
 TXT_DIR = "voc.txt"

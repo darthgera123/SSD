@@ -268,6 +268,8 @@ def create_tfrecords(image_dir, xml_dir, outpath=os.path.join(os.getcwd(),'DATA'
 
 if __name__ == '__main__':
   # image_dir, xml_dir = download_chess_dataset()
-  image_dir = '../images'
-  xml_dir = '../annotations/pascalvoc_xml'
+  # image_dir = '../aerial_dataset/JPEGImages'
+  # xml_dir = '../aerial_dataset/Annotations'
+  image_dir = '../VOC2007/JPEGImages'
+  xml_dir = '../VOC2007/Annotations'
   create_tfrecords(image_dir, xml_dir, outname='aerial-vehicles-dataset.tfrecord')
