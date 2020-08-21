@@ -8,3 +8,4 @@ aerial-vehicles-dataset
 *.jpeg
 *.gz
 /aerial_yolo
+*.jpg

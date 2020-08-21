@@ -5,6 +5,8 @@ import math, sys
 from pprint import pprint
 import xml.etree.ElementTree as ET
 
+from helpers import download_chess_dataset
+
 def int64_feature(value):
   return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
@@ -265,6 +267,6 @@ def create_tfrecords(image_dir, xml_dir, outpath=os.path.join(os.getcwd(),'DATA'
 
 
 if __name__ == '__main__':
-  image_dir="../images"
-  xml_dir="../annotations/pascalvoc_xml"
+  image_dir, xml_dir = download_chess_dataset()
+
   create_tfrecords(image_dir, xml_dir, outname='aerial-vehicles-dataset.tfrecord')

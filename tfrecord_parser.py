@@ -1,103 +1,98 @@
 import tensorflow as tf
+from tensorflow import keras
 import cv2, os, glob
 import numpy as np
 
-IMAGE_WIDTH=300
-IMAGE_HEIGHT=300
-MAX_BOX_PER_IMAGE = 30
-# Read the tfrecords
-# preprocess and do augmentation
-# return the dataloader
-# return image, [bbox, labels]
-def __resize(image):
+from helpers import SSD300Config
+
+config = SSD300Config()
+
+
+def pad_resize(image, height, width, resize_width, resize_height):
     """Summary
-    
+
     Args:
         image (TYPE): Description
-        
+        height (TYPE): Description
+        width (TYPE): Description
+        scale (TYPE): Description
+
     Returns:
         numpy nd.array: Description
     """
+    padded_image = np.zeros(shape=(height.astype(int), width.astype(int),3), dtype=image.dtype)
+    h,w,_ =  image.shape
+    padded_image[:h,:w,:] = image
+    resized_image = cv2.resize(padded_image, (resize_width, resize_height)).astype(keras.backend.floatx())
+    return resized_image
 
-    image = image.astype(np.uint8)
-    resized_image = cv2.resize(image,(IMAGE_HEIGHT,IMAGE_WIDTH))
-    resized_image = resized_image/255
-    # any other augmentation tricks and techniques should be added here.
-    return resized_image.astype('float32')
 
 @tf.function
-def decode_resize(image_string):
-  """Summary
-  
-  Args:
+def decode_pad_resize(image_string, pad_height, pad_width, resize_width, resize_height):
+    """Summary
+
+    Args:
       image_string (TYPE): Description
-      
-  
-  Returns:
+      pad_height (TYPE): Description
+      pad_width (TYPE): Description
+      esize_width, resize_height (TYPE): Description
+
+    Returns:
       tf.tensor: Description
-  """
-  
-  image = tf.image.decode_jpeg(image_string)
-  # image = tf.image.resize(image, [IMAGE_HEIGHT, IMAGE_WIDTH])
-  image = tf.numpy_function(__resize, [image], Tout=tf.keras.backend.floatx())
-  #image.set_shape([None, None, 3])
-  return image
+    """
+    image = tf.image.decode_jpeg(image_string)
+    image = tf.numpy_function(pad_resize, [image, pad_height, pad_width, resize_width, resize_height], Tout=keras.backend.floatx())
+    #image.set_shape([None, None, 3])
+    return image
 
-def resize_boxes(xmins,xmaxs,ymins,ymaxs,h,w):
-  """Summary
-  
-  Args:
-      xmins: min x coordinate of bbox
-      xmaxs: max x coordinate of bbox
-      ymins: min y coordinate of bbox
-      ymaxs: max y coordinate of bbox
-      h: height of image
-      w: width of image
-      
-  
-  Returns:
-      xmin,tmin,xmax,ymax (resized versions)
 
-  """
-  resize_ratio = [IMAGE_HEIGHT / h, IMAGE_WIDTH / w]
-  xmin = (resize_ratio[1] * xmins).astype('uint32')
-  xmax = (resize_ratio[1] * xmaxs).astype('uint32')
-  ymin = (resize_ratio[0] * ymins).astype('uint32')
-  ymax = (resize_ratio[0] * ymaxs).astype('uint32')
-  return xmin.astype('float32'), ymin.astype('float32'), xmax.astype('float32'), ymax.astype('float32')
 
-def create_tensor(xmins,xmaxs,ymins,ymaxs,labels):
-  """Summary
-  Create a bbox batch of the form [xmin,ymin, xmax,ymax,labels]
-  """
-  new_tensor = list(zip(xmins,ymins,xmaxs,ymaxs,labels))
-  remainder = MAX_BOX_PER_IMAGE-len(new_tensor)
-  if remainder > 0:
-    for i in range(remainder):
-      new_tensor.append([0,0,0,0,-1])
-  else:
-    new_tensor = new_tensor[:MAX_BOX_PER_IMAGE]
-  return np.asarray(new_tensor).astype('float32')
 
-def process_bbox(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch, heights, widths, batch_size):
+def make_gt(bboxes, max_box_per_image, height_scale, width_scale):
+    """Summary
+    Create a bbox batch of the form [xmin,ymin, xmax,ymax,labels]
+    """
+
+    # delete bboxes containing [-1,-1,-1,-1, -1] added in **[1]
+    bboxes = bboxes[~np.all(bboxes==-1, axis=1)]
+
+    bboxes[:,0] *= width_scale
+    bboxes[:,1] *= width_scale
+    bboxes[:,2] *= height_scale
+    bboxes[:,3] *= height_scale
+
+    num_boxes, boxes_per_row = bboxes.shape
+
+    assert boxes_per_row == 5
+
+    arr = np.zeros((max_box_per_image,5), keras.backend.floatx())
+    arr[:,-1] -= 1
+
+    max_index = min(num_boxes, max_box_per_image)
+
+    arr[:max_index, :5] = bboxes[:max_index, :5]
+
+    return arr #.astype(keras.backend.floatx())
+
+@tf.function
+def tf_make_gt(xmin_batch, ymin_batch, xmax_batch, ymax_batch, label_batch, batch_size, max_box_per_image, height_scale, width_scale):
     
-    regression_batch = list()
+    annotation_batch = list()
 
     for index in range(batch_size):
 
         xmins, ymins, xmaxs, ymaxs, labels = xmin_batch[index], ymin_batch[index], xmax_batch[index], ymax_batch[index], label_batch[index]
-        height,width = heights[index], widths[index]
-        xmin,ymin,xmax,ymax = tf.numpy_function(resize_boxes, [xmins, xmaxs, ymins, ymaxs, height, width], 
-          Tout=[tf.keras.backend.floatx(), tf.keras.backend.floatx(), tf.keras.backend.floatx(), tf.keras.backend.floatx()])
-        bbox = tf.numpy_function(create_tensor,[xmin,xmax,ymin,ymax,labels],Tout=tf.keras.backend.floatx())
-        # bboxes = tf.convert_to_tensor([xmin,ymin,xmax,ymax], dtype=tf.keras.backend.floatx())
-        bboxes = tf.convert_to_tensor(bbox, dtype=tf.keras.backend.floatx())
-        # bboxes = tf.transpose(bboxes)
-        
 
-        regression_batch.append(bboxes)
+        labels = tf.cast(labels, keras.backend.floatx())
 
-    return tf.convert_to_tensor(regression_batch)
+        bboxes = tf.convert_to_tensor([xmins,ymins,xmaxs,ymaxs,labels], dtype=keras.backend.floatx())
+        bboxes = tf.transpose(bboxes)
+
+        bboxes = tf.numpy_function(make_gt, [bboxes, max_box_per_image, height_scale, width_scale], Tout=keras.backend.floatx())
+
+        annotation_batch.append(bboxes)
+
+    return tf.convert_to_tensor(annotation_batch)
 
 
 class Tfrpaser(object):
@@ -120,33 +115,44 @@ class Tfrpaser(object):
               'image/height': tf.io.FixedLenFeature([], tf.int64),
               'image/width': tf.io.FixedLenFeature([], tf.int64),
               'image/encoded': tf.io.FixedLenFeature([],tf.string),
-              'image/object/bbox/xmin': tf.io.VarLenFeature(tf.keras.backend.floatx()),
-              'image/object/bbox/xmax': tf.io.VarLenFeature(tf.keras.backend.floatx()),
-              'image/object/bbox/ymin': tf.io.VarLenFeature(tf.keras.backend.floatx()),
-              'image/object/bbox/ymax': tf.io.VarLenFeature(tf.keras.backend.floatx()),
+              'image/object/bbox/xmin': tf.io.VarLenFeature(keras.backend.floatx()),
+              'image/object/bbox/xmax': tf.io.VarLenFeature(keras.backend.floatx()),
+              'image/object/bbox/ymin': tf.io.VarLenFeature(keras.backend.floatx()),
+              'image/object/bbox/ymax': tf.io.VarLenFeature(keras.backend.floatx()),
               'image/f_id': tf.io.FixedLenFeature([], tf.int64),
               'image/object/class/label':tf.io.VarLenFeature(tf.int64)}
 
 
         parsed_example = tf.io.parse_example(serialized=serialized, features=features)
 
-        # max_height = tf.cast(tf.keras.backend.max(parsed_example['image/height']), tf.int32)
-        # max_width = tf.cast(tf.keras.backend.max(parsed_example['image/width']), tf.int32)
-        heights = tf.cast(parsed_example['image/height'],tf.int32)
-        widths = tf.cast(parsed_example['image/width'],tf.int32)
-        image_batch = tf.map_fn(lambda x: decode_resize(x), parsed_example['image/encoded'], dtype=tf.keras.backend.floatx())
-        
-        xmin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmin'],default_value=0)
-        xmax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmax'],default_value=0)
-        ymin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymin'],default_value=0)
-        ymax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymax'],default_value=0)
+        max_height = tf.cast(tf.keras.backend.max(parsed_example['image/height']), tf.int32)
+        max_width = tf.cast(tf.keras.backend.max(parsed_example['image/width']), tf.int32)
 
+        height_scale = config.width/max_height
+        width_scale = config.width/max_width
+
+
+        image_batch = tf.map_fn(lambda x: decode_pad_resize(x, max_height, max_width, config.width, config.width), parsed_example['image/encoded'], dtype=keras.backend.floatx())
+
+        # **[1] pad with -1 to batch properly
+        xmin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmin'], default_value=-1)
+        xmax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/xmax'], default_value=-1)
+        ymin_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymin'], default_value=-1)
+        ymax_batch = tf.sparse.to_dense(parsed_example['image/object/bbox/ymax'], default_value=-1)
         label_batch = tf.sparse.to_dense(parsed_example['image/object/class/label'], default_value=-1)
 
-        regression_batch = process_bbox(xmin_batch, xmax_batch, 
-          ymin_batch, ymax_batch, label_batch, heights, widths, self.batch_size)
+        annotation_batch = tf_make_gt(
+            xmin_batch, 
+            xmax_batch, 
+            ymin_batch, 
+            ymax_batch, 
+            label_batch, 
+            self.batch_size,
+            config.max_boxes_per_image,
+            height_scale, 
+            width_scale)
 
-        return image_batch, regression_batch
+        return image_batch/255, annotation_batch
 
 
     def parse_tfrecords(self, filename):
@@ -172,6 +178,8 @@ class Tfrpaser(object):
 
 if __name__ == '__main__':
 
+    from helpers import draw_boxes_on_image_v2
+
     parser = Tfrpaser(batch_size=2)
     
     dataset = parser.parse_tfrecords(filename=os.path.join(os.getcwd(),'DATA','train*.tfrecord'))
@@ -179,6 +187,12 @@ if __name__ == '__main__':
     for data, annotation in dataset.take(1):
         image_batch = data.numpy()
         abxs_batch = annotation.numpy()
-        print(image_batch)
-        print(abxs_batch)
+        # print(image_batch.shape)
+        # print(abxs_batch.shape)
+        # # print(image_batch)
+        # print(abxs_batch)
+
+        for index in range(parser.batch_size):
+            im = draw_boxes_on_image_v2(image_batch[index]*255, abxs_batch[index])
+            cv2.imwrite(f"{index}.jpg", im)
         
